@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALEtoso — ALE Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- TOP BAR -->
+  <header id="top-bar">
+    <div id="logo">
+      <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="30" height="30" rx="7" fill="#1c1f28"/>
+        <text x="4" y="21" font-family="JetBrains Mono, monospace" font-size="13" font-weight="500" fill="#4fffb0">ALE</text>
+        <circle cx="26" cy="5" r="3.5" fill="#4fffb0"/>
+      </svg>
+      <span id="logo-text">ALEtoso</span>
+    </div>
+
+    <div id="top-actions">
+      <button class="btn btn-primary" id="btn-open">Abrir</button>
+      <input type="file" id="file-input" accept=".ale,.txt" hidden>
+      <button class="btn btn-secondary" id="btn-save" disabled>Guardar</button>
+    </div>
+
+    <div id="file-info">Sin archivo</div>
+  </header>
+
+  <!-- HEADING PANEL -->
+  <div id="heading-panel">
+    <div id="heading-toggle">
+      <span id="heading-arrow">▶</span>
+      <span class="heading-label">Heading</span>
+      <span id="heading-preview" class="heading-preview-text"></span>
+    </div>
+    <div id="heading-content" hidden></div>
+  </div>
+
+  <!-- TABLE TOOLBAR -->
+  <div id="table-toolbar">
+    <div id="toolbar-left">
+      <input type="search" id="search-input" placeholder="Buscar…" autocomplete="off">
+    </div>
+    <div id="toolbar-center">
+      <span class="toolbar-label">Tabla:</span>
+      <button class="btn btn-secondary btn-sm" id="btn-add-col" title="Añadir columna al final">+Col</button>
+      <button class="btn btn-secondary btn-sm" id="btn-add-row" title="Añadir fila vacía al final">+Fila</button>
+      <button class="btn btn-danger btn-sm" id="btn-delete-rows" title="Eliminar filas seleccionadas (click en nº de fila)">−Fila</button>
+    </div>
+    <div id="toolbar-right">
+      <span class="toolbar-label">Utilidades:</span>
+      <button class="btn btn-utility btn-sm" id="btn-util-tracks" title="Pone toda la columna Tracks a 'V'">Tracks → V</button>
+      <button class="btn btn-utility btn-sm" id="btn-util-rename-tc" title="Renombra Auxiliary TC1 a Sound TC si no existe ya">AuxTC1 → Sound TC</button>
+      <button class="btn btn-utility btn-sm" id="btn-util-highlight" title="Resalta en naranja celdas vacías en Tape, Start, End, Sound TC">Resaltar vacíos</button>
+      <div class="toolbar-sep"></div>
+      <button class="btn btn-secondary btn-sm" id="btn-fnr-open" title="Buscar y reemplazar (Ctrl+H)">Buscar/Reemplazar</button>
+    </div>
+  </div>
+
+  <!-- TABLE CONTAINER -->
+  <div id="table-container" tabindex="0">
+    <div class="empty-state">
+      <div class="empty-icon">◈</div>
+      <p>Abre un archivo <code>.ale</code> para comenzar</p>
+      <p class="empty-hint">Arrastra el archivo aquí o usa el botón Abrir</p>
+    </div>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div id="status-bar">
+    <span id="status-text">Sin archivo</span>
+  </div>
+
+  <!-- FIND & REPLACE PANEL -->
+  <div id="fnr-panel" hidden>
+    <div id="fnr-row">
+      <input id="fnr-find"    type="text" placeholder="Buscar…"    autocomplete="off" spellcheck="false">
+      <input id="fnr-replace" type="text" placeholder="Reemplazar…" autocomplete="off" spellcheck="false">
+      <span id="fnr-count"></span>
+      <button class="btn btn-secondary btn-sm" id="fnr-prev"    title="Anterior (Shift+Enter)">↑</button>
+      <button class="btn btn-secondary btn-sm" id="fnr-next"    title="Siguiente (Enter)">↓</button>
+      <button class="btn btn-secondary btn-sm" id="fnr-replace-one" title="Reemplazar este">Reemplazar</button>
+      <button class="btn btn-utility  btn-sm" id="fnr-replace-all" title="Reemplazar todos">Reemplazar todo</button>
+      <button class="btn btn-secondary btn-sm" id="fnr-close"   title="Cerrar (Escape)">✕</button>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toast-container"></div>
+
+  <!-- DROP OVERLAY -->
+  <div id="drop-overlay">
+    <div id="drop-overlay-inner">Suelta el archivo .ale aquí</div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
