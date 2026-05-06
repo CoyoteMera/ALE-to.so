@@ -61,6 +61,19 @@ body {
   flex-shrink: 0;
 }
 
+#logo-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent-2);
+  background: var(--accent-2-dim);
+  border: 1px solid var(--accent-2);
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  align-self: center;
+}
+
 #logo-text {
   font-size: 16px;
   font-weight: 600;
