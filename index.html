@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
@@ -21,13 +21,15 @@
           <tspan x="6" fill="#4fffb0">ALE-to.so</tspan>
         </text>
       </svg>
-      <span id="logo-badge">beta</span>
+      <span id="logo-badge">V0.2</span>
     </div>
 
     <div id="top-actions">
       <button class="btn btn-primary" id="btn-open">Abrir</button>
       <input type="file" id="file-input" accept=".ale,.txt" hidden>
-      <button class="btn btn-secondary" id="btn-save" disabled>Guardar</button>
+      <button class="btn btn-secondary" id="btn-save" disabled>Guardar .ale</button>
+      <button class="btn btn-secondary" id="btn-export-csv" disabled>CSV</button>
+      <button class="btn btn-secondary" id="btn-export-xlsx" disabled>XLSX</button>
     </div>
 
     <div id="file-info">Sin archivo</div>
@@ -59,6 +61,7 @@
       <button class="btn btn-utility btn-sm" id="btn-util-tracks" title="Pone toda la columna Tracks a 'V'">Tracks → V</button>
       <button class="btn btn-utility btn-sm" id="btn-util-rename-tc" title="Renombra Auxiliary TC1 a Sound TC si no existe ya">AuxTC1 → Sound TC</button>
       <button class="btn btn-utility btn-sm" id="btn-util-highlight" title="Resalta en naranja celdas vacías en Tape, Start, End, Sound TC">Resaltar vacíos</button>
+      <button class="btn btn-utility btn-sm" id="btn-util-empty-cols" title="Gestionar columnas vacías">Columnas Vacías</button>
       <div class="toolbar-sep"></div>
       <button class="btn btn-secondary btn-sm" id="btn-fnr-open" title="Buscar y reemplazar (Ctrl+H)">Buscar/Reemplazar</button>
     </div>
@@ -92,6 +95,19 @@
     </div>
   </div>
 
+  <!-- EMPTY COLS POPOVER -->
+  <div id="empty-cols-popover" hidden>
+    <h3 class="modal-title">Columnas Vacías</h3>
+    <p id="empty-cols-list"></p>
+    <div class="modal-actions">
+      <button class="btn btn-utility btn-sm" id="btn-empty-highlight">Resaltar</button>
+      <button class="btn btn-secondary btn-sm" id="btn-empty-hide">Ocultar</button>
+      <button class="btn btn-danger btn-sm" id="btn-empty-delete">Borrar</button>
+      <button class="btn btn-utility btn-sm" id="btn-empty-show">Mostrar</button>
+      <button class="btn btn-secondary btn-sm" id="btn-empty-cancel">Cancelar</button>
+    </div>
+  </div>
+
   <!-- TOAST CONTAINER -->
   <div id="toast-container"></div>
 
@@ -100,6 +116,7 @@
     <div id="drop-overlay-inner">Suelta el archivo .ale aquí</div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

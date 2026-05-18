@@ -17,6 +17,11 @@ const state = {
   selectedRows:  new Set(),
   lastSelectedRow: undefined,
   filterQuery:   '',
+  undoStack:     [],
+  redoStack:     [],
+  colWidths:     [],
+  hiddenCols:    new Set(),
+  highlightedCols: new Set()
 };
 
 // === DOM HELPERS ===
@@ -105,9 +110,16 @@ function openFile(file) {
       state.selectedRows.clear();
       state.lastSelectedRow = undefined;
       state.filterQuery   = '';
+      state.undoStack     = [];
+      state.redoStack     = [];
+      state.colWidths     = [];
+      state.hiddenCols.clear();
+      state.highlightedCols.clear();
 
       document.getElementById('search-input').value    = '';
       document.getElementById('btn-save').disabled     = false;
+      document.getElementById('btn-export-csv').disabled  = false;
+      document.getElementById('btn-export-xlsx').disabled = false;
       document.getElementById('file-info').textContent = file.name;
 
       renderHeading();
@@ -140,6 +152,46 @@ function downloadFile() {
   showToast('Descargado: ' + fname);
 }
 
+function downloadCSV() {
+  if (!state.fileName) { showToast('No hay archivo abierto', 'warn'); return; }
+  commitEdit();
+  const escapeCSV = (str) => {
+    if (/[,"\n\r]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+    return str;
+  };
+  const rows = [];
+  rows.push(state.columns.map(escapeCSV).join(','));
+  state.rows.forEach(r => rows.push(r.map(escapeCSV).join(',')));
+  const csvContent = rows.join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const base = state.fileName.replace(/\.[^/.]+$/, '');
+  const fname = base + '.csv';
+  const a = el('a');
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Descargado: ' + fname);
+}
+
+function downloadXLSX() {
+  if (!state.fileName) { showToast('No hay archivo abierto', 'warn'); return; }
+  if (typeof XLSX === 'undefined') { showToast('Librería XLSX no cargada', 'error'); return; }
+  commitEdit();
+  const ws_data = [];
+  ws_data.push(state.columns);
+  state.rows.forEach(r => ws_data.push(r));
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ALE Data');
+  const base = state.fileName.replace(/\.[^/.]+$/, '');
+  XLSX.writeFile(wb, base + '.xlsx');
+  showToast('Descargado: ' + base + '.xlsx');
+}
+
 function setupDragDrop() {
   const overlay = document.getElementById('drop-overlay');
   let dragCounter = 0;
@@ -156,6 +208,182 @@ function setupDragDrop() {
   });
 }
 
+// === UNDO / REDO ===
+function saveState() {
+  state.undoStack.push({
+    heading: JSON.parse(JSON.stringify(state.heading)),
+    columns: [...state.columns],
+    rows: state.rows.map(r => [...r]),
+    modifiedCells: new Set(state.modifiedCells),
+    warningCells: new Set(state.warningCells),
+    renamedCols: new Set(state.renamedCols),
+    hiddenCols: new Set(state.hiddenCols),
+    highlightedCols: new Set(state.highlightedCols),
+    colWidths: [...state.colWidths]
+  });
+  state.redoStack = [];
+}
+function restoreState(s) {
+  state.heading = JSON.parse(JSON.stringify(s.heading));
+  state.columns = [...s.columns];
+  state.rows = s.rows.map(r => [...r]);
+  state.modifiedCells = new Set(s.modifiedCells);
+  state.warningCells = new Set(s.warningCells);
+  state.renamedCols = new Set(s.renamedCols);
+  state.hiddenCols = new Set(s.hiddenCols);
+  state.highlightedCols = new Set(s.highlightedCols);
+  state.colWidths = [...s.colWidths];
+  state.dirty = true;
+  state.activeCell = null;
+  state.editMode = null;
+  renderHeading();
+  renderTable();
+  updateStatusBar();
+}
+function undo() {
+  if (state.undoStack.length === 0) return;
+  commitEdit();
+  state.redoStack.push({
+    heading: JSON.parse(JSON.stringify(state.heading)),
+    columns: [...state.columns],
+    rows: state.rows.map(r => [...r]),
+    modifiedCells: new Set(state.modifiedCells),
+    warningCells: new Set(state.warningCells),
+    renamedCols: new Set(state.renamedCols),
+    hiddenCols: new Set(state.hiddenCols),
+    highlightedCols: new Set(state.highlightedCols),
+    colWidths: [...state.colWidths]
+  });
+  const s = state.undoStack.pop();
+  restoreState(s);
+}
+function redo() {
+  if (state.redoStack.length === 0) return;
+  commitEdit();
+  state.undoStack.push({
+    heading: JSON.parse(JSON.stringify(state.heading)),
+    columns: [...state.columns],
+    rows: state.rows.map(r => [...r]),
+    modifiedCells: new Set(state.modifiedCells),
+    warningCells: new Set(state.warningCells),
+    renamedCols: new Set(state.renamedCols),
+    hiddenCols: new Set(state.hiddenCols),
+    highlightedCols: new Set(state.highlightedCols),
+    colWidths: [...state.colWidths]
+  });
+  const s = state.redoStack.pop();
+  restoreState(s);
+}
+
+// === COL RESIZE ===
+let resizeInfo = null;
+function initColResize(e, c) {
+  e.preventDefault(); e.stopPropagation();
+  const th = e.target.closest('th');
+  resizeInfo = { c, startX: e.clientX, startWidth: th.offsetWidth };
+  document.addEventListener('mousemove', onColResize);
+  document.addEventListener('mouseup', endColResize);
+}
+function onColResize(e) {
+  if (!resizeInfo) return;
+  const newWidth = Math.max(30, resizeInfo.startWidth + (e.clientX - resizeInfo.startX));
+  const colgroup = document.querySelector('#ale-table colgroup');
+  if (colgroup && colgroup.children[resizeInfo.c + 1]) colgroup.children[resizeInfo.c + 1].style.width = newWidth + 'px';
+}
+function endColResize(e) {
+  if (!resizeInfo) return;
+  document.removeEventListener('mousemove', onColResize);
+  document.removeEventListener('mouseup', endColResize);
+  const colgroup = document.querySelector('#ale-table colgroup');
+  if (colgroup && colgroup.children[resizeInfo.c + 1]) {
+    state.colWidths[resizeInfo.c] = parseInt(colgroup.children[resizeInfo.c + 1].style.width);
+  }
+  resizeInfo = null;
+}
+
+// === EMPTY COLS ===
+let emptyColsDetected = [];
+function util_manageEmptyCols() {
+  if (!state.columns.length) { showToast('No hay archivo cargado', 'warn'); return; }
+  commitEdit();
+  emptyColsDetected = [];
+  for (let c = 0; c < state.columns.length; c++) {
+    let isEmpty = true;
+    for (let r = 0; r < state.rows.length; r++) {
+      if (state.rows[r][c].trim() !== '') { isEmpty = false; break; }
+    }
+    if (isEmpty) emptyColsDetected.push(c);
+  }
+  
+  if (!emptyColsDetected.length && state.hiddenCols.size === 0) { 
+    showToast('No se encontraron columnas vacías ni ocultas.'); 
+    return; 
+  }
+  
+  let listText = '(Ninguna columna vacía detectada)';
+  if (emptyColsDetected.length > 0) {
+    const names = emptyColsDetected.map(c => state.columns[c]);
+    if (names.length > 5) {
+      listText = names.slice(0, 5).join(', ') + ' ... y ' + (names.length - 5) + ' más';
+    } else {
+      listText = names.join(', ');
+    }
+  }
+  document.getElementById('empty-cols-list').textContent = listText;
+    
+  const btnShow = document.getElementById('btn-empty-show');
+  if (btnShow) {
+    if (state.hiddenCols.size > 0) {
+      btnShow.style.display = 'inline-block';
+      btnShow.textContent = 'Mostrar (' + state.hiddenCols.size + ')';
+    } else {
+      btnShow.style.display = 'none';
+    }
+  }
+
+  const btn = document.getElementById('btn-util-empty-cols');
+  const popover = document.getElementById('empty-cols-popover');
+  const rect = btn.getBoundingClientRect();
+  popover.style.top = (rect.bottom + 8) + 'px';
+  popover.style.left = Math.max(10, rect.right - 420) + 'px'; // 420 is min-width
+  popover.hidden = false;
+}
+function emptyColsAction(action) {
+  document.getElementById('empty-cols-popover').hidden = true;
+  if (!emptyColsDetected.length) return;
+  saveState();
+  if (action === 'highlight') {
+    emptyColsDetected.forEach(c => state.highlightedCols.add(c));
+    renderTable(); showToast(emptyColsDetected.length + ' columnas resaltadas.');
+  } else if (action === 'hide') {
+    emptyColsDetected.forEach(c => state.hiddenCols.add(c));
+    renderTable(); showToast(emptyColsDetected.length + ' columnas ocultadas.');
+  } else if (action === 'delete') {
+    [...emptyColsDetected].sort((a,b) => b - a).forEach(c => {
+      state.columns.splice(c, 1); state.rows.forEach(row => row.splice(c, 1));
+      const adjustSet = set => { const next = new Set(); set.forEach(key => { const s = key.indexOf(','); const r = parseInt(key.slice(0, s)), col = parseInt(key.slice(s + 1)); if (col !== c) next.add(r + ',' + (col < c ? col : col - 1)); }); return next; };
+      state.modifiedCells = adjustSet(state.modifiedCells); state.warningCells = adjustSet(state.warningCells);
+      const shiftSet = set => { const next = new Set(); set.forEach(col => { if (col !== c) next.add(col < c ? col : col - 1); }); return next; };
+      state.renamedCols = shiftSet(state.renamedCols); state.hiddenCols = shiftSet(state.hiddenCols); state.highlightedCols = shiftSet(state.highlightedCols);
+      state.colWidths.splice(c, 1);
+    });
+    state.dirty = true; renderTable(); updateStatusBar(); showToast(emptyColsDetected.length + ' columnas borradas.');
+  }
+}
+
+function util_showHiddenCols() {
+  if (state.hiddenCols.size === 0) {
+    showToast('No hay columnas ocultas.', 'info');
+    return;
+  }
+  saveState();
+  const count = state.hiddenCols.size;
+  state.hiddenCols.clear();
+  renderTable();
+  updateStatusBar();
+  showToast(count + ' columna(s) restaurada(s).');
+}
+
 // === HEADING ===
 function renderHeading() {
   const content = document.getElementById('heading-content');
@@ -170,15 +398,16 @@ function renderHeading() {
 
     const delBtn = el('button', { class: 'btn-delete-heading-row', title: 'Eliminar par' }, '×');
 
-    keyInput.addEventListener('change', () => { state.heading[i].key = keyInput.value; state.dirty = true; updateStatusBar(); updateHeadingPreview(); });
-    valInput.addEventListener('change', () => { state.heading[i].value = valInput.value; state.dirty = true; updateStatusBar(); updateHeadingPreview(); });
-    delBtn.addEventListener('click', () => { state.heading.splice(i, 1); state.dirty = true; renderHeading(); updateStatusBar(); });
+    keyInput.addEventListener('change', () => { saveState(); state.heading[i].key = keyInput.value; state.dirty = true; updateStatusBar(); updateHeadingPreview(); });
+    valInput.addEventListener('change', () => { saveState(); state.heading[i].value = valInput.value; state.dirty = true; updateStatusBar(); updateHeadingPreview(); });
+    delBtn.addEventListener('click', () => { saveState(); state.heading.splice(i, 1); state.dirty = true; renderHeading(); updateStatusBar(); });
 
     content.appendChild(el('div', { class: 'heading-row' }, keyInput, el('span', { class: 'heading-sep' }, '→'), valInput, delBtn));
   });
 
   const addBtn = el('button', { class: 'btn-add-heading-row' }, '+ Añadir par');
   addBtn.addEventListener('click', () => {
+    saveState();
     state.heading.push({ key: '', value: '' });
     state.dirty = true;
     renderHeading();
@@ -220,6 +449,13 @@ function buildHeaderRow() {
       const dot = el('span', { class: 'renamed-dot', title: 'Renombrada' }, '●');
       th.appendChild(dot);
     }
+    if (state.hiddenCols.has(c)) th.classList.add('col-hidden');
+    if (state.highlightedCols.has(c)) th.classList.add('col-empty');
+
+    const resizer = el('div', { class: 'resizer' });
+    resizer.addEventListener('mousedown', (e) => initColResize(e, c));
+    th.appendChild(resizer);
+
     tr.appendChild(th);
   }
   return tr;
@@ -239,6 +475,8 @@ function buildDataRow(r) {
     if (state.modifiedCells.has(key)) td.classList.add('cell-modified');
     if (state.warningCells.has(key))  td.classList.add('cell-warning');
     if (state.activeCell && state.activeCell.r === r && state.activeCell.c === c) td.classList.add('cell-active');
+    if (state.hiddenCols.has(c)) td.classList.add('col-hidden');
+    if (state.highlightedCols.has(c)) td.classList.add('col-empty');
     td.textContent = row[c];
     tr.appendChild(td);
   }
@@ -268,6 +506,14 @@ function renderTable() {
   const thead  = el('thead');
   const tbody  = document.createElement('tbody');
   const frag   = document.createDocumentFragment();
+
+  const colgroup = el('colgroup');
+  colgroup.appendChild(el('col', { style: 'width: 48px' }));
+  for (let c = 0; c < state.columns.length; c++) {
+    const width = state.colWidths[c] || 150;
+    colgroup.appendChild(el('col', { style: 'width: ' + width + 'px' }));
+  }
+  table.appendChild(colgroup);
 
   thead.appendChild(buildHeaderRow());
   table.appendChild(thead);
@@ -407,6 +653,7 @@ function commitEdit() {
   td.classList.remove('cell-editing');
 
   if (newValue !== oldValue) {
+    saveState();
     const key = r + ',' + c;
     state.modifiedCells.add(key);
     state.dirty = true;
@@ -467,6 +714,7 @@ function handleKeyDown(e) {
 
     case 'Delete':
       e.preventDefault();
+      saveState();
       state.rows[r][c] = '';
       state.modifiedCells.add(r + ',' + c);
       state.dirty = true;
@@ -491,6 +739,7 @@ function handleKeyDown(e) {
 // === ROW / COLUMN OPERATIONS ===
 function addRow() {
   commitEdit();
+  saveState();
   state.rows.push(state.columns.map(() => ''));
   state.dirty = true;
   renderTable();
@@ -503,6 +752,7 @@ function deleteSelectedRows() {
   if (state.selectedRows.size >= 3 && !confirm('¿Eliminar ' + state.selectedRows.size + ' filas?')) return;
 
   commitEdit();
+  saveState();
   const toDelete = new Set(state.selectedRows);
 
   const rebuildByRow = (set) => {
@@ -533,6 +783,7 @@ function deleteSelectedRows() {
 function addColumn() {
   const name = prompt('Nombre de la nueva columna:');
   if (name === null || name.trim() === '') return;
+  saveState();
   const colName = name.trim();
   state.columns.push(colName);
   state.rows.forEach(row => row.push(''));
@@ -546,6 +797,7 @@ function deleteColumn(colIdx) {
   const colName = state.columns[colIdx];
   if (!confirm('¿Eliminar la columna "' + colName + '"?')) return;
 
+  saveState();
   state.columns.splice(colIdx, 1);
   state.rows.forEach(row => row.splice(colIdx, 1));
 
@@ -602,6 +854,7 @@ function util_normalizeTracksToV() {
   if (colIdx === -1) { showToast('No hay columna "Tracks"', 'error'); return; }
 
   commitEdit();
+  saveState();
   let count = 0;
   state.rows.forEach((row, r) => {
     if (row[colIdx] !== 'V') {
@@ -626,6 +879,7 @@ function util_renameAuxTC1ToSoundTC() {
   if (soundIdx !== -1) { showToast('Ya existe "Sound TC" — no se renombra', 'warn'); return; }
 
   commitEdit();
+  saveState();
   state.columns[auxIdx] = 'Sound TC';
   state.renamedCols.add(auxIdx);
   state.dirty = true;
@@ -757,6 +1011,7 @@ function fnrReplaceOne() {
   const replace = document.getElementById('fnr-replace').value;
   if (!find) return;
 
+  saveState();
   const { r, c } = fnr.matches[fnr.activeIdx];
   state.rows[r][c] = state.rows[r][c].replace(new RegExp(escapeRegex(find), 'gi'), replace);
   state.modifiedCells.add(r + ',' + c);
@@ -776,6 +1031,7 @@ function fnrReplaceAll() {
   if (!find || !state.columns.length) return;
 
   commitEdit();
+  saveState();
   const re = new RegExp(escapeRegex(find), 'gi');
   let count = 0;
   state.rows.forEach((row, r) => {
@@ -847,6 +1103,8 @@ function init() {
   document.getElementById('btn-open').addEventListener('click', () => document.getElementById('file-input').click());
   document.getElementById('file-input').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ''; });
   document.getElementById('btn-save').addEventListener('click', downloadFile);
+  document.getElementById('btn-export-csv').addEventListener('click', downloadCSV);
+  document.getElementById('btn-export-xlsx').addEventListener('click', downloadXLSX);
 
   document.getElementById('heading-toggle').addEventListener('click', () => {
     const content  = document.getElementById('heading-content');
@@ -892,12 +1150,38 @@ function init() {
     if (e.key === 'Escape') { e.preventDefault(); fnrClose(); }
   });
 
-  // Global shortcut: Ctrl+H / Cmd+H
+  // Global shortcut: Ctrl+H / Cmd+H, Undo/Redo
   document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h') {
       e.preventDefault();
       const panel = document.getElementById('fnr-panel');
       if (panel.hidden) fnrOpen(); else fnrClose();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      if (e.target.tagName === 'INPUT') return;
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      if (e.target.tagName === 'INPUT') return;
+      e.preventDefault();
+      redo();
+    }
+  });
+
+  document.getElementById('btn-util-empty-cols')?.addEventListener('click', util_manageEmptyCols);
+  document.getElementById('btn-empty-highlight')?.addEventListener('click', () => emptyColsAction('highlight'));
+  document.getElementById('btn-empty-hide')?.addEventListener('click', () => emptyColsAction('hide'));
+  document.getElementById('btn-empty-delete')?.addEventListener('click', () => emptyColsAction('delete'));
+  document.getElementById('btn-empty-cancel')?.addEventListener('click', () => document.getElementById('empty-cols-popover').hidden = true);
+  document.getElementById('btn-empty-show')?.addEventListener('click', () => { util_showHiddenCols(); document.getElementById('empty-cols-popover').hidden = true; });
+
+  // Close popover when clicking outside
+  document.addEventListener('click', (e) => {
+    const popover = document.getElementById('empty-cols-popover');
+    const btn = document.getElementById('btn-util-empty-cols');
+    if (popover && !popover.hidden && !popover.contains(e.target) && e.target !== btn) {
+      popover.hidden = true;
     }
   });
 

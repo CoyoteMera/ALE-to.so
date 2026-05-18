@@ -341,8 +341,8 @@ body {
   border-collapse: collapse;
   font-family: var(--font-mono);
   font-size: 13px;
-  min-width: 100%;
-  table-layout: auto;
+  width: max-content;
+  table-layout: fixed;
 }
 
 #ale-table th {
@@ -361,6 +361,26 @@ body {
   z-index: 2;
   user-select: none;
   cursor: default;
+}
+
+.resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 5px;
+  cursor: col-resize;
+  user-select: none;
+  height: 100%;
+  z-index: 3;
+}
+.resizer:hover, .resizing {
+  background: var(--accent);
+}
+
+th.col-hidden, td.col-hidden { display: none !important; }
+th.col-empty, td.col-empty {
+  background: rgba(79, 255, 176, 0.1) !important;
+  border-left: 2px solid var(--accent) !important;
 }
 
 #ale-table th.row-num-header {
@@ -591,6 +611,26 @@ td.cell-modified.cell-warning {
   transition: background 80ms, color 80ms;
 }
 .context-menu-item:hover { background: var(--bg-surface); color: var(--danger); }
+
+/* ── POPOVER ── */
+#empty-cols-popover {
+  position: fixed;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  min-width: 420px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  z-index: 250;
+  display: flex;
+  flex-direction: column;
+}
+#empty-cols-popover[hidden] {
+  display: none !important;
+}
+.modal-title { font-size: 16px; margin-bottom: 10px; color: var(--text); }
+#empty-cols-list { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); margin-bottom: 20px; word-break: break-all; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* ── FIND & REPLACE PANEL ── */
 #fnr-panel {
