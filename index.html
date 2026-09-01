@@ -3,120 +3,201 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ALEtoso — ALE Editor</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
+  <title>ALE-to.so → Metarubrics</title>
+  <meta name="description" content="ALE-to.so ahora es Metarubrics.">
+  <link rel="canonical" href="https://coyotemera.github.io/metarubrics/">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%230d0d0d'/><text x='50' y='72' font-size='62' font-family='monospace' fill='%23ebe8dc' text-anchor='middle'>&#9670;</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500&family=Kumar+One&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:     #000;
+      --text:   #ebe8dc;
+      --dim:    #858585;
+      --muted:  #696969;
+      --border: #2a2a2a;
+      --ui:      'Manrope', system-ui, sans-serif;
+      --display: 'Kumar One', var(--ui);
+      color-scheme: dark;   /* so the scrollbar is not white on black */
+    }
+    html, body { height: 100%; }
+    body {
+      /* border-box, or the padding stacks on top of height:100% and the page
+         scrolls a couple of rem for nothing */
+      box-sizing: border-box;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--ui);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* fixed, so the sky stays out of the centring grid instead of claiming a cell */
+    #sky { position: fixed; inset: 0; pointer-events: none; }
+    main { position: relative; max-width: 30rem; text-align: center; }
+
+    .old {
+      font-size: clamp(1rem, 3.4vw, 1.25rem);
+      letter-spacing: .12em;
+      color: var(--muted);
+      margin: 0 0 1.3rem;
+    }
+
+    /* Small and untracked, against the tracked name above it — the two lines
+       read as one caption rather than as two competing labels. */
+    .now {
+      font-size: .8rem;
+      letter-spacing: .04em;
+      color: var(--dim);
+      margin: 0 0 2rem;
+    }
+
+    h1 {
+      font-family: var(--display);
+      font-weight: 400;
+      font-size: clamp(2.4rem, 9vw, 4rem);
+      line-height: 1;
+      margin: 0 0 2.75rem;
+    }
+
+    a.go {
+      display: inline-block;
+      padding: .8rem 1.6rem;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 500;
+      letter-spacing: .02em;
+      transition: border-color .18s, background-color .18s;
+    }
+    a.go:hover, a.go:focus-visible { border-color: var(--text); background: rgba(235,232,220,.06); }
+  </style>
 </head>
 <body>
+  <canvas id="sky" aria-hidden="true"></canvas>
 
-  <!-- TOP BAR -->
-  <header id="top-bar">
-    <div id="logo">
-      <svg width="82" height="28" viewBox="0 0 82 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="82" height="28" rx="6" fill="#1c1f28"/>
-        <text y="19" font-family="JetBrains Mono, monospace" font-size="12" font-weight="500">
-          <tspan x="6" fill="#4fffb0">ALE-to.so</tspan>
-        </text>
-      </svg>
-      <span id="logo-badge">V0.2</span>
-    </div>
+  <main>
+    <p class="old">ALE-to.so</p>
+    <p class="now">ahora es</p>
+    <h1>Metarubrics</h1>
+    <a class="go" href="https://coyotemera.github.io/metarubrics/">Ir a Metarubrics →</a>
+  </main>
 
-    <div id="top-actions">
-      <button class="btn btn-primary" id="btn-open">Abrir</button>
-      <input type="file" id="file-input" accept=".ale,.txt" hidden>
-      <button class="btn btn-secondary" id="btn-save" disabled>Guardar .ale</button>
-      <button class="btn btn-secondary" id="btn-export-csv" disabled>CSV</button>
-      <button class="btn btn-secondary" id="btn-export-xlsx" disabled>XLSX</button>
-    </div>
+  <script>
+  // ============================================================
+  // The star field from Metarubrics' empty state, turned down.
+  // ============================================================
+  //
+  // Same idea — glyphs on a character grid, each breathing on its own sine
+  // phase — but this page is a signpost someone reads for two seconds, not a
+  // surface they sit in front of. So: a looser grid, fewer stars, half the ink,
+  // and no shooting stars at all. A meteor is something you wait for, and there
+  // is nothing here worth waiting for.
+  (function () {
+    const cv = document.getElementById('sky');
+    const main = document.querySelector('main');
+    if (!cv || !cv.getContext) return;
 
-    <div id="file-info">Sin archivo</div>
-  </header>
+    const RAMP  = ['.', ':', '*'];   // the app also uses '#' and '@'; both read as loud here
+    const INK   = '235, 232, 220';
+    const GLYPH = 'ui-monospace, "Cascadia Mono", Consolas, monospace';
 
-  <!-- HEADING PANEL -->
-  <div id="heading-panel">
-    <div id="heading-toggle">
-      <span id="heading-arrow">▶</span>
-      <span class="heading-label">Heading</span>
-      <span id="heading-preview" class="heading-preview-text"></span>
-    </div>
-    <div id="heading-content" hidden></div>
-  </div>
+    const CELL_W = 16, CELL_H = 20;   // looser than the app's 13×17 — more air between specks
+    const DENSITY = 0.07;             // app: 0.085
+    const FPS = 12;
+    const CLEAR_PAD = 24;             // hard keep-out past the text's own box
+    const CLEAR_BAND = 120;           // and a wide fade past that, so the type sits in a clearing
 
-  <!-- TABLE TOOLBAR -->
-  <div id="table-toolbar">
-    <div id="toolbar-left">
-      <input type="search" id="search-input" placeholder="Buscar…" autocomplete="off">
-    </div>
-    <div id="toolbar-center">
-      <span class="toolbar-label">Tabla:</span>
-      <button class="btn btn-secondary btn-sm" id="btn-add-col" title="Añadir columna al final">+Col</button>
-      <button class="btn btn-secondary btn-sm" id="btn-add-row" title="Añadir fila vacía al final">+Fila</button>
-      <button class="btn btn-danger btn-sm" id="btn-delete-rows" title="Eliminar filas seleccionadas (click en nº de fila)">−Fila</button>
-    </div>
-    <div id="toolbar-right">
-      <span class="toolbar-label">Utilidades:</span>
-      <button class="btn btn-utility btn-sm" id="btn-util-tracks" title="Pone toda la columna Tracks a 'V'">Tracks → V</button>
-      <button class="btn btn-utility btn-sm" id="btn-util-rename-tc" title="Renombra Auxiliary TC1 a Sound TC si no existe ya">AuxTC1 → Sound TC</button>
-      <button class="btn btn-utility btn-sm" id="btn-util-highlight" title="Resalta en naranja celdas vacías en Tape, Start, End, Sound TC">Resaltar vacíos</button>
-      <button class="btn btn-utility btn-sm" id="btn-util-empty-cols" title="Gestionar columnas vacías">Columnas Vacías</button>
-      <div class="toolbar-sep"></div>
-      <button class="btn btn-secondary btn-sm" id="btn-fnr-open" title="Buscar y reemplazar (Ctrl+H)">Buscar/Reemplazar</button>
-    </div>
-  </div>
+    const still = matchMedia('(prefers-reduced-motion: reduce)');
+    let ctx = null, stars = [], w = 0, h = 0;
 
-  <!-- TABLE CONTAINER -->
-  <div id="table-container" tabindex="0">
-    <div class="empty-state">
-      <div class="empty-icon">◈</div>
-      <p>Abre un archivo <code>.ale</code> para comenzar</p>
-      <p class="empty-hint">Arrastra el archivo aquí o usa el botón Abrir</p>
-    </div>
-  </div>
+    // 0 inside the text's box, 1 once past the band around it
+    function clearance(box, x, y) {
+      if (!box) return 1;
+      const dx = Math.max(box.x0 - x, 0, x - box.x1);
+      const dy = Math.max(box.y0 - y, 0, y - box.y1);
+      return Math.min(1, Math.hypot(dx, dy) / CLEAR_BAND);
+    }
 
-  <!-- STATUS BAR -->
-  <div id="status-bar">
-    <span id="status-text">Sin archivo</span>
-  </div>
+    function layout() {
+      w = window.innerWidth; h = window.innerHeight;
+      const r = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = Math.round(w * r); cv.height = Math.round(h * r);
+      cv.style.width = w + 'px'; cv.style.height = h + 'px';
+      ctx = cv.getContext('2d');
+      ctx.setTransform(r, 0, 0, r, 0, 0);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
-  <!-- FIND & REPLACE PANEL -->
-  <div id="fnr-panel" hidden>
-    <div id="fnr-row">
-      <input id="fnr-find"    type="text" placeholder="Buscar…"    autocomplete="off" spellcheck="false">
-      <input id="fnr-replace" type="text" placeholder="Reemplazar…" autocomplete="off" spellcheck="false">
-      <span id="fnr-count"></span>
-      <button class="btn btn-secondary btn-sm" id="fnr-prev"    title="Anterior (Shift+Enter)">↑</button>
-      <button class="btn btn-secondary btn-sm" id="fnr-next"    title="Siguiente (Enter)">↓</button>
-      <button class="btn btn-secondary btn-sm" id="fnr-replace-one" title="Reemplazar este">Reemplazar</button>
-      <button class="btn btn-utility  btn-sm" id="fnr-replace-all" title="Reemplazar todos">Reemplazar todo</button>
-      <button class="btn btn-secondary btn-sm" id="fnr-close"   title="Cerrar (Escape)">✕</button>
-    </div>
-  </div>
+      let box = null;
+      if (main) {
+        const m = main.getBoundingClientRect();
+        box = { x0: m.left - CLEAR_PAD, x1: m.right  + CLEAR_PAD,
+                y0: m.top  - CLEAR_PAD, y1: m.bottom + CLEAR_PAD };
+      }
 
-  <!-- EMPTY COLS POPOVER -->
-  <div id="empty-cols-popover" hidden>
-    <h3 class="modal-title">Columnas Vacías</h3>
-    <p id="empty-cols-list"></p>
-    <div class="modal-actions">
-      <button class="btn btn-utility btn-sm" id="btn-empty-highlight">Resaltar</button>
-      <button class="btn btn-secondary btn-sm" id="btn-empty-hide">Ocultar</button>
-      <button class="btn btn-danger btn-sm" id="btn-empty-delete">Borrar</button>
-      <button class="btn btn-utility btn-sm" id="btn-empty-show">Mostrar</button>
-      <button class="btn btn-secondary btn-sm" id="btn-empty-cancel">Cancelar</button>
-    </div>
-  </div>
+      const cols = Math.max(1, Math.floor(w / CELL_W));
+      const rows = Math.max(1, Math.floor(h / CELL_H));
+      const offX = (w - cols * CELL_W) / 2, offY = (h - rows * CELL_H) / 2;
+      const taken = new Set();
+      stars = [];
+      for (let i = 0, want = Math.round(cols * rows * DENSITY); i < want; i++) {
+        const gx = (Math.random() * cols) | 0, gy = (Math.random() * rows) | 0;
+        const key = gy * cols + gx;
+        if (taken.has(key)) continue;          // one star per cell, or they collide
+        taken.add(key);
+        const x = offX + (gx + 0.5) * CELL_W, y = offY + (gy + 0.5) * CELL_H;
+        // the clearing is spent twice: as the odds this star exists at all, and
+        // as a ceiling on how bright it gets — culling alone leaves a hard edge
+        const room = clearance(box, x, y);
+        if (room === 0 || Math.random() > room) continue;
+        stars.push({
+          x: x, y: y,
+          // biased hard toward the dim end: a sky is mostly faint specks
+          base:  (0.10 + 0.90 * Math.pow(Math.random(), 2.6)) * room,
+          speed: 0.20 + Math.random() * 0.55,  // slower than the app's 0.30–1.15
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      if (still.matches) draw(0);
+    }
 
-  <!-- TOAST CONTAINER -->
-  <div id="toast-container"></div>
+    function draw(t) {
+      ctx.clearRect(0, 0, w, h);
+      const last = RAMP.length - 1;
+      for (const s of stars) {
+        // never off, never full: the field breathes rather than blinks
+        const l = s.base * (0.55 + 0.45 * Math.sin(t * s.speed + s.phase));
+        const idx = Math.max(0, Math.min(last, Math.round(l * last)));
+        ctx.font = (6 + idx * 1.2).toFixed(1) + 'px ' + GLYPH;
+        // the app peaks near .41 alpha; landing under .30 keeps this behind the
+        // type without dimming the field to the point of not reading as a sky
+        ctx.fillStyle = 'rgba(' + INK + ', ' + (0.05 + 0.25 * l).toFixed(3) + ')';
+        ctx.fillText(RAMP[idx], s.x, s.y);
+      }
+    }
 
-  <!-- DROP OVERLAY -->
-  <div id="drop-overlay">
-    <div id="drop-overlay-inner">Suelta el archivo .ale aquí</div>
-  </div>
+    layout();
+    // Kumar One may still be in flight, and the wordmark is what sets how wide
+    // the clearing has to be — re-measure once it lands
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+    window.addEventListener('resize', layout);
 
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="app.js?v=9"></script>
+    if (still.matches) return;      // one static frame is the whole animation
+
+    const t0 = performance.now();
+    let lastFrame = 0;
+    (function loop(now) {
+      requestAnimationFrame(loop);
+      if (now - lastFrame < 1000 / FPS) return;
+      lastFrame = now;
+      draw((now - t0) / 1000);
+    })(t0);
+  })();
+  </script>
 </body>
 </html>
